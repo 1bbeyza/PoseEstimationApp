@@ -10,7 +10,18 @@ import java.nio.ByteOrder
 import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
 
-class MoveNetHelper(assetManager: AssetManager) {
+
+// Kullanılabilir MoveNet modelleri ve özellikleri
+enum class MoveNetModel(val fileName: String, val inputSize: Int) {
+    LIGHTNING("movenet_singlepose_lightning_int8.tflite", 192),
+    THUNDER("movenet_singlepose_thunder_int8.tflite", 256)
+}
+
+
+class MoveNetHelper(
+    assetManager: AssetManager,
+    private val model: MoveNetModel = MoveNetModel.LIGHTNING
+) {
 
     private var interpreter: Interpreter? = null
 
@@ -43,7 +54,7 @@ class MoveNetHelper(assetManager: AssetManager) {
     private fun loadModelFile(assetManager: AssetManager): MappedByteBuffer {
 
         val fileDescriptor =
-            assetManager.openFd("movenet_singlepose_lightning_int8.tflite")
+            assetManager.openFd(model.fileName)
 
         val inputStream = FileInputStream(fileDescriptor.fileDescriptor)
 
@@ -93,23 +104,18 @@ class MoveNetHelper(assetManager: AssetManager) {
      * 192x192 boyutuna getirir.
      */
     private fun preprocess(bitmap: Bitmap): Bitmap {
-
-        return Bitmap.createScaledBitmap(
-            bitmap,
-            192,
-            192,
-            true
-        )
+        return Bitmap.createScaledBitmap(bitmap, model.inputSize, model.inputSize, true)
     }
 
     /**
      * Bitmap piksellerini okuyup INT8/UINT8 formatında ByteBuffer'a dönüştürür.
      */
     private fun bitmapToByteBuffer(bitmap: Bitmap): ByteBuffer {
-        val inputBuffer = ByteBuffer.allocateDirect(1 * 192 * 192 * 3)
+        val size = model.inputSize
+        val inputBuffer = ByteBuffer.allocateDirect(1 * size * size * 3)
         inputBuffer.order(ByteOrder.nativeOrder())
 
-        val pixels = IntArray(192 * 192)
+        val pixels = IntArray(size * size)
         bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
 
         for (pixel in pixels) {

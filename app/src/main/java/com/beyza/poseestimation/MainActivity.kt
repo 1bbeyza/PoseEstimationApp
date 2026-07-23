@@ -33,6 +33,9 @@ class MainActivity : AppCompatActivity() {
     // Overlay (iskelet çizim katmanı)
     private lateinit var overlayView: OverlayView
 
+    // Pose estimation çalışıyor mu?
+    private var isRunning = false
+
     // Kamera izni isteme
     private val requestPermissionLauncher =
         registerForActivityResult(
@@ -58,14 +61,15 @@ class MainActivity : AppCompatActivity() {
         overlayView = findViewById<OverlayView>(R.id.overlayView)
 
         // MoveNet modelini yükle
-        moveNetHelper = MoveNetHelper(assets)
+        // Başlangıçta Lightning ile başla
+        // moveNetHelper = MoveNetHelper(assets, MoveNetModel.LIGHTNING)
 
         // Kamera analiz thread'i oluştur
         cameraExecutor = Executors.newSingleThreadExecutor()
 
         // Spinner
         val spinner = findViewById<Spinner>(R.id.spinnerModel)
-        val models = listOf("MoveNet", "MediaPipe", "RTMPose")
+        val models = listOf("MoveNet Lightning", "MoveNet Thunder")
         val adapter = ArrayAdapter(
             this,
             android.R.layout.simple_spinner_dropdown_item,
@@ -74,14 +78,36 @@ class MainActivity : AppCompatActivity() {
         spinner.adapter = adapter
 
         // START Butonu
+        // START butonu
         val startButton = findViewById<Button>(R.id.btnStart)
         startButton.setOnClickListener {
             val selectedModel = spinner.selectedItem.toString()
-            Toast.makeText(
-                this,
-                "$selectedModel başlatılıyor...",
-                Toast.LENGTH_SHORT
-            ).show()
+
+            // Seçilen isme göre model tipini belirle
+            val modelType = when (selectedModel) {
+                "MoveNet Thunder" -> MoveNetModel.THUNDER
+                else -> MoveNetModel.LIGHTNING
+            }
+
+            // Modeli yükle
+            moveNetHelper = MoveNetHelper(assets, modelType)
+
+            // Analizi başlat
+            isRunning = true
+
+            Toast.makeText(this, "$selectedModel başlatıldı", Toast.LENGTH_SHORT).show()
+        }
+
+        // STOP butonu
+        val stopButton = findViewById<Button>(R.id.btnStop)
+        stopButton.setOnClickListener {
+            // Analizi durdur
+            isRunning = false
+
+            // Ekrandaki iskeleti temizle
+            overlayView.setKeyPoints(emptyList())
+
+            Toast.makeText(this, "Durduruldu", Toast.LENGTH_SHORT).show()
         }
 
         // Kamera izni kontrolü
@@ -121,19 +147,20 @@ class MainActivity : AppCompatActivity() {
 
                 val bitmap = ImageUtils.imageProxyToBitmap(imageProxy)
 
-                if (bitmap != null) {
+                // Sadece isRunning true ise modeli çalıştır
+                // Sadece isRunning true ise modeli çalıştır
+                if (bitmap != null && isRunning) {
 
-                    Log.d("MoveNet", "Bitmap hazır: ${bitmap.width}x${bitmap.height}")
-
-                    // Modeli çalıştır, 17 keypoint al
                     val keyPoints = moveNetHelper.estimatePose(bitmap)
 
-                    // Çizimi ana thread'de yap (UI güncellemesi ana thread'de olmalı)
                     runOnUiThread {
-                        overlayView.setKeyPoints(keyPoints)
+                        // Çizmeden önce tekrar kontrol et
+                        // (model çalışırken STOP'a basılmış olabilir)
+                        if (isRunning) {
+                            overlayView.setKeyPoints(keyPoints)
+                        }
                     }
                 }
-
                 imageProxy.close()
             }
 
