@@ -21,7 +21,7 @@ enum class MoveNetModel(val fileName: String, val inputSize: Int) {
 class MoveNetHelper(
     assetManager: AssetManager,
     private val model: MoveNetModel = MoveNetModel.LIGHTNING
-) {
+) : PoseEstimator {
 
     private var interpreter: Interpreter? = null
 
@@ -128,7 +128,7 @@ class MoveNetHelper(
         return inputBuffer
     }
 
-    fun estimatePose(bitmap: Bitmap): List<KeyPoint> {
+    override fun estimatePose(bitmap: Bitmap): List<KeyPoint> {
 
         val inputBitmap = preprocess(bitmap)
         val inputBuffer = bitmapToByteBuffer(inputBitmap)
@@ -157,5 +157,10 @@ class MoveNetHelper(
         }
 
         return keyPoints
+    }
+
+    override fun close() {
+        interpreter?.close()
+        interpreter = null
     }
 }

@@ -25,7 +25,7 @@ import java.util.concurrent.Executors
 class MainActivity : AppCompatActivity() {
 
     // MoveNet Helper
-    private lateinit var moveNetHelper: MoveNetHelper
+    private lateinit var poseEstimator: PoseEstimator
 
     // Kamera analiz thread'i
     private lateinit var cameraExecutor: ExecutorService
@@ -90,7 +90,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             // Modeli yükle
-            moveNetHelper = MoveNetHelper(assets, modelType)
+            poseEstimator = MoveNetHelper(assets, modelType)
 
             // Analizi başlat
             isRunning = true
@@ -151,7 +151,7 @@ class MainActivity : AppCompatActivity() {
                 // Sadece isRunning true ise modeli çalıştır
                 if (bitmap != null && isRunning) {
 
-                    val keyPoints = moveNetHelper.estimatePose(bitmap)
+                    val keyPoints = poseEstimator.estimatePose(bitmap)
 
                     runOnUiThread {
                         // Çizmeden önce tekrar kontrol et
@@ -188,6 +188,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+
+        if (::poseEstimator.isInitialized) {
+            poseEstimator.close()
+        }
+
         cameraExecutor.shutdown()
     }
 }
