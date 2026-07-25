@@ -18,6 +18,7 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
     }
 
     buildTypes {
@@ -52,6 +53,9 @@ dependencies {
     // TensorFlow Lite (MoveNet için)
     // TensorFlow Lite (MoveNet için)
     implementation("org.tensorflow:tensorflow-lite:2.16.1")
+
+    // MediaPipe Pose Landmarker
+    implementation("com.google.mediapipe:tasks-vision:0.10.21")
     
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.espresso.core)

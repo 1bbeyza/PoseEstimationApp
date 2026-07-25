@@ -69,7 +69,7 @@ class MainActivity : AppCompatActivity() {
 
         // Spinner
         val spinner = findViewById<Spinner>(R.id.spinnerModel)
-        val models = listOf("MoveNet Lightning", "MoveNet Thunder")
+        val models = listOf("MoveNet Lightning", "MoveNet Thunder", "MediaPipe")
         val adapter = ArrayAdapter(
             this,
             android.R.layout.simple_spinner_dropdown_item,
@@ -83,14 +83,17 @@ class MainActivity : AppCompatActivity() {
         startButton.setOnClickListener {
             val selectedModel = spinner.selectedItem.toString()
 
-            // Seçilen isme göre model tipini belirle
-            val modelType = when (selectedModel) {
-                "MoveNet Thunder" -> MoveNetModel.THUNDER
-                else -> MoveNetModel.LIGHTNING
+            // Önceki modeli kapat (bellek sızıntısını önle)
+            if (::poseEstimator.isInitialized) {
+                poseEstimator.close()
             }
 
-            // Modeli yükle
-            poseEstimator = MoveNetHelper(assets, modelType)
+            // Seçime göre uygun estimator'ı oluştur
+            poseEstimator = when (selectedModel) {
+                "MoveNet Thunder" -> MoveNetHelper(assets, MoveNetModel.THUNDER)
+                "MediaPipe" -> MediaPipeHelper(this)
+                else -> MoveNetHelper(assets, MoveNetModel.LIGHTNING)
+            }
 
             // Analizi başlat
             isRunning = true
