@@ -21,6 +21,8 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import android.content.Intent
+import android.widget.TextView
 
 class MainActivity : AppCompatActivity() {
 
@@ -35,6 +37,12 @@ class MainActivity : AppCompatActivity() {
 
     // Pose estimation çalışıyor mu?
     private var isRunning = false
+
+    // Ölçüm için biriktiriciler
+    private var totalInferenceTime = 0L      // toplam süre (ms)
+    private var totalConfidence = 0f         // toplam güven
+    private var frameCount = 0               // işlenen frame sayısı
+    private var currentModelName = ""        // o an çalışan model
 
     // Kamera izni isteme
     private val requestPermissionLauncher =
@@ -67,19 +75,29 @@ class MainActivity : AppCompatActivity() {
         // Kamera analiz thread'i oluştur
         cameraExecutor = Executors.newSingleThreadExecutor()
 
+
         // Spinner
         val spinner = findViewById<Spinner>(R.id.spinnerModel)
-        val models = listOf("MoveNet Lightning", "MoveNet Thunder", "MediaPipe")
+
+        val models = listOf(
+            "MoveNet Lightning",
+            "MoveNet Thunder",
+            "MediaPipe"
+        )
+
         val adapter = ArrayAdapter(
             this,
-            android.R.layout.simple_spinner_dropdown_item,
+            R.layout.spinner_item,
             models
         )
+
+        adapter.setDropDownViewResource(R.layout.spinner_dropdown_item)
+
         spinner.adapter = adapter
 
         // START Butonu
         // START butonu
-        val startButton = findViewById<Button>(R.id.btnStart)
+        val startButton = findViewById<TextView>(R.id.btnStart)
         startButton.setOnClickListener {
             val selectedModel = spinner.selectedItem.toString()
 
@@ -95,6 +113,13 @@ class MainActivity : AppCompatActivity() {
                 else -> MoveNetHelper(assets, MoveNetModel.LIGHTNING)
             }
 
+
+            // Ölçüm biriktiricilerini sıfırla
+            totalInferenceTime = 0L
+            totalConfidence = 0f
+            frameCount = 0
+            currentModelName = selectedModel
+
             // Analizi başlat
             isRunning = true
 
@@ -102,17 +127,45 @@ class MainActivity : AppCompatActivity() {
         }
 
         // STOP butonu
-        val stopButton = findViewById<Button>(R.id.btnStop)
+        val stopButton = findViewById<TextView>(R.id.btnStop)
         stopButton.setOnClickListener {
-            // Analizi durdur
             isRunning = false
-
-            // Ekrandaki iskeleti temizle
             overlayView.setKeyPoints(emptyList())
 
-            Toast.makeText(this, "Durduruldu", Toast.LENGTH_SHORT).show()
+            // Ölçüm varsa kaydet
+            if (frameCount > 0) {
+                val avgMs = totalInferenceTime.toFloat() / frameCount
+                val avgFps = if (avgMs > 0) 1000f / avgMs else 0f
+                val avgConf = totalConfidence / frameCount
+
+                val stats = ModelStats(
+                    modelName = currentModelName,
+                    avgInferenceMs = avgMs,
+                    avgFps = avgFps,
+                    avgConfidence = avgConf,
+                    frameCount = frameCount
+                )
+
+                StatsRepository.addRecord(stats)
+
+                Toast.makeText(this, "İstatistik kaydedildi", Toast.LENGTH_SHORT).show()
+
+                // Kayıttan sonra sıfırla — tekrar STOP'a basınca mükerrer kayıt olmasın
+                totalInferenceTime = 0L
+                totalConfidence = 0f
+                frameCount = 0
+
+            } else {
+                Toast.makeText(this, "Durduruldu", Toast.LENGTH_SHORT).show()
+            }
         }
 
+        // İstatistikler butonu (STOP'un DIŞINDA, kendi başına)
+        val statsButton = findViewById<TextView>(R.id.btnStats)
+        statsButton.setOnClickListener {
+            val intent = Intent(this, StatsActivity::class.java)
+            startActivity(intent)
+        }
         // Kamera izni kontrolü
         if (ContextCompat.checkSelfPermission(
                 this,
@@ -151,14 +204,24 @@ class MainActivity : AppCompatActivity() {
                 val bitmap = ImageUtils.imageProxyToBitmap(imageProxy)
 
                 // Sadece isRunning true ise modeli çalıştır
-                // Sadece isRunning true ise modeli çalıştır
                 if (bitmap != null && isRunning) {
 
+                    // Süreyi ölç
+                    val startTime = System.currentTimeMillis()
                     val keyPoints = poseEstimator.estimatePose(bitmap)
+                    val elapsed = System.currentTimeMillis() - startTime
+
+                    // Ortalama güveni hesapla (bu frame için)
+                    val avgConf = if (keyPoints.isNotEmpty()) {
+                        keyPoints.map { it.score }.average().toFloat()
+                    } else 0f
+
+                    // Biriktir
+                    totalInferenceTime += elapsed
+                    totalConfidence += avgConf
+                    frameCount++
 
                     runOnUiThread {
-                        // Çizmeden önce tekrar kontrol et
-                        // (model çalışırken STOP'a basılmış olabilir)
                         if (isRunning) {
                             overlayView.setKeyPoints(keyPoints)
                         }

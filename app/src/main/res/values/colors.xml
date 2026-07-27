@@ -1,5 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="black">#FF000000</color>
-    <color name="white">#FFFFFFFF</color>
+
+    <color name="black">#000000</color>
+    <color name="white">#FFFFFF</color>
+
+    <!-- Background -->
+    <color name="bg_deep">#111827</color>
+
+    <!-- Cards -->
+    <color name="surface">#1F2937</color>
+    <color name="surface_light">#273244</color>
+
+    <!-- Borders -->
+    <color name="border">#374151</color>
+
+    <!-- Text -->
+    <color name="text_primary">#F9FAFB</color>
+    <color name="text_secondary">#9CA3AF</color>
+
+    <!-- Primary -->
+    <color name="accent">#4F8CFF</color>
+    <color name="accent_dark">#2563EB</color>
+
+    <!-- Success -->
+    <color name="success">#22C55E</color>
+
+    <!-- Stop -->
+    <color name="stop_red">#EF4444</color>
+
+    <!-- Channels -->
+    <color name="channel_lightning">#4F8CFF</color>
+    <color name="channel_thunder">#14B8A6</color>
+    <color name="channel_mediapipe">#8B5CF6</color>
+
 </resources>
