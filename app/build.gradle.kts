@@ -35,6 +35,7 @@ android {
 
     androidResources {
         noCompress += "tflite"
+        noCompress += "onnx"
     }
 }
 
@@ -56,6 +57,9 @@ dependencies {
 
     // MediaPipe Pose Landmarker
     implementation("com.google.mediapipe:tasks-vision:0.10.21")
+
+    // ONNX Runtime (RTMPose için)
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.19.2")
     
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.espresso.core)

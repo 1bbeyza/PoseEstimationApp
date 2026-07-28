@@ -79,11 +79,8 @@ class MainActivity : AppCompatActivity() {
         // Spinner
         val spinner = findViewById<Spinner>(R.id.spinnerModel)
 
-        val models = listOf(
-            "MoveNet Lightning",
-            "MoveNet Thunder",
-            "MediaPipe"
-        )
+        val models = listOf("MoveNet Lightning", "MoveNet Thunder",
+            "MediaPipe", "RTMPose")
 
         val adapter = ArrayAdapter(
             this,
@@ -110,6 +107,7 @@ class MainActivity : AppCompatActivity() {
             poseEstimator = when (selectedModel) {
                 "MoveNet Thunder" -> MoveNetHelper(assets, MoveNetModel.THUNDER)
                 "MediaPipe" -> MediaPipeHelper(this)
+                "RTMPose" -> RTMPoseHelper(this)
                 else -> MoveNetHelper(assets, MoveNetModel.LIGHTNING)
             }
 
