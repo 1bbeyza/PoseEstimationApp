@@ -9,6 +9,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
+import android.os.Build
 
 
 // Kullanılabilir MoveNet modelleri ve özellikleri
@@ -37,10 +38,18 @@ class MoveNetHelper(
 
         Log.d("MoveNet", ">>> INIT BAŞLADI")
 
-        val options = Interpreter.Options().apply {
-            setNumThreads(2)
-            setUseXNNPACK(false)
+        // Cihaz mimarisini kontrol et: emülatör (x86) mi, gerçek cihaz (ARM) mı?
+        val isEmulator = Build.SUPPORTED_ABIS.any {
+            it.contains("x86", ignoreCase = true)
         }
+
+        val options = Interpreter.Options().apply {
+            setNumThreads(4)
+            // Emülatörde XNNPACK çöküyor → kapat. Gerçek ARM cihazda → aç (hızlı)
+            setUseXNNPACK(!isEmulator)
+        }
+
+        Log.d("MoveNet", "Emülatör mü: $isEmulator, XNNPACK: ${!isEmulator}")
 
         interpreter = Interpreter(loadModelFile(assetManager), options)
 

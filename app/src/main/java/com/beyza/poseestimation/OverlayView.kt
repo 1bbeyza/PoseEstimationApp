@@ -12,6 +12,13 @@ class OverlayView(context: Context, attrs: AttributeSet?) : View(context, attrs)
 
     private var keyPoints: List<KeyPoint> = emptyList()
 
+    // Ön kamera mı? (aynalama için)
+    private var isFrontCamera = true
+
+    fun setFrontCamera(front: Boolean) {
+        isFrontCamera = front
+    }
+
     private val pointPaint = Paint().apply {
         color = Color.GREEN
         style = Paint.Style.FILL
@@ -50,18 +57,18 @@ class OverlayView(context: Context, attrs: AttributeSet?) : View(context, attrs)
             if (startPoint != null && endPoint != null &&
                 startPoint.score > 0.3f && endPoint.score > 0.3f) {
 
-                canvas.drawLine(
-                    (1f - startPoint.x) * width, startPoint.y * height,
-                    (1f - endPoint.x) * width, endPoint.y * height,
-                    linePaint
-                )
+                val sx = if (isFrontCamera) (1f - startPoint.x) * width else startPoint.x * width
+                val sy = startPoint.y * height
+                val ex = if (isFrontCamera) (1f - endPoint.x) * width else endPoint.x * width
+                val ey = endPoint.y * height
+                canvas.drawLine(sx, sy, ex, ey, linePaint)
             }
         }
 
         // SONRA noktaları çiz
         for (point in keyPoints) {
             if (point.score > 0.3f) {
-                val x = (1f - point.x) * width
+                val x = if (isFrontCamera) (1f - point.x) * width else point.x * width
                 val y = point.y * height
                 canvas.drawCircle(x, y, 12f, pointPaint)
             }

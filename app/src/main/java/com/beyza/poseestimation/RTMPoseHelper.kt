@@ -38,7 +38,7 @@ class RTMPoseHelper(context: Context) : PoseEstimator {
         ortEnv = OrtEnvironment.getEnvironment()
 
         // Modeli assets'ten byte olarak oku
-        val modelBytes = context.assets.open("rtmpose_m.onnx").readBytes()
+        val modelBytes = context.assets.open("rtmpose_s.onnx").readBytes()
 
         // ONNX session oluştur
         ortSession = ortEnv!!.createSession(modelBytes, OrtSession.SessionOptions())

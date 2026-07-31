@@ -23,28 +23,29 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import android.content.Intent
 import android.widget.TextView
+import android.graphics.Bitmap
 
 class MainActivity : AppCompatActivity() {
 
-    // MoveNet Helper
     private lateinit var poseEstimator: PoseEstimator
-
-    // Kamera analiz thread'i
     private lateinit var cameraExecutor: ExecutorService
-
-    // Overlay (iskelet çizim katmanı)
     private lateinit var overlayView: OverlayView
+    private lateinit var livePanel: TextView
 
-    // Pose estimation çalışıyor mu?
+    // Kamera yönü (varsayılan: ön)
+    private var lensFacing = CameraSelector.DEFAULT_FRONT_CAMERA
+
     private var isRunning = false
 
-    // Ölçüm için biriktiriciler
-    private var totalInferenceTime = 0L      // toplam süre (ms)
-    private var totalConfidence = 0f         // toplam güven
-    private var frameCount = 0               // işlenen frame sayısı
-    private var currentModelName = ""        // o an çalışan model
+    private var totalInferenceTime = 0L
+    private var totalConfidence = 0f
+    private var frameCount = 0
+    private var currentModelName = ""
 
-    // Kamera izni isteme
+    // Frame atlama için sayaç
+    private var frameSkipCounter = 0
+    private val processEveryNthFrame = 2   // her 2 frame'de 1 işle
+
     private val requestPermissionLauncher =
         registerForActivityResult(
             ActivityResultContracts.RequestPermission()
@@ -52,11 +53,7 @@ class MainActivity : AppCompatActivity() {
             if (isGranted) {
                 startCamera()
             } else {
-                Toast.makeText(
-                    this,
-                    "Kamera izni verilmedi.",
-                    Toast.LENGTH_SHORT
-                ).show()
+                Toast.makeText(this, "Camera permission denied", Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -65,45 +62,27 @@ class MainActivity : AppCompatActivity() {
         enableEdgeToEdge()
         setContentView(R.layout.activity_main)
 
-        // OverlayView'ı bul
         overlayView = findViewById<OverlayView>(R.id.overlayView)
+        livePanel = findViewById(R.id.livePanel)
 
-        // MoveNet modelini yükle
-        // Başlangıçta Lightning ile başla
-        // moveNetHelper = MoveNetHelper(assets, MoveNetModel.LIGHTNING)
-
-        // Kamera analiz thread'i oluştur
         cameraExecutor = Executors.newSingleThreadExecutor()
-
 
         // Spinner
         val spinner = findViewById<Spinner>(R.id.spinnerModel)
-
-        val models = listOf("MoveNet Lightning", "MoveNet Thunder",
-            "MediaPipe", "RTMPose")
-
-        val adapter = ArrayAdapter(
-            this,
-            R.layout.spinner_item,
-            models
-        )
-
+        val models = listOf("MoveNet Lightning", "MoveNet Thunder", "MediaPipe", "RTMPose")
+        val adapter = ArrayAdapter(this, R.layout.spinner_item, models)
         adapter.setDropDownViewResource(R.layout.spinner_dropdown_item)
-
         spinner.adapter = adapter
 
-        // START Butonu
         // START butonu
         val startButton = findViewById<TextView>(R.id.btnStart)
         startButton.setOnClickListener {
             val selectedModel = spinner.selectedItem.toString()
 
-            // Önceki modeli kapat (bellek sızıntısını önle)
             if (::poseEstimator.isInitialized) {
                 poseEstimator.close()
             }
 
-            // Seçime göre uygun estimator'ı oluştur
             poseEstimator = when (selectedModel) {
                 "MoveNet Thunder" -> MoveNetHelper(assets, MoveNetModel.THUNDER)
                 "MediaPipe" -> MediaPipeHelper(this)
@@ -111,17 +90,14 @@ class MainActivity : AppCompatActivity() {
                 else -> MoveNetHelper(assets, MoveNetModel.LIGHTNING)
             }
 
-
-            // Ölçüm biriktiricilerini sıfırla
             totalInferenceTime = 0L
             totalConfidence = 0f
             frameCount = 0
             currentModelName = selectedModel
 
-            // Analizi başlat
             isRunning = true
 
-            Toast.makeText(this, "$selectedModel başlatıldı", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "$selectedModel started", Toast.LENGTH_SHORT).show()
         }
 
         // STOP butonu
@@ -129,8 +105,8 @@ class MainActivity : AppCompatActivity() {
         stopButton.setOnClickListener {
             isRunning = false
             overlayView.setKeyPoints(emptyList())
+            livePanel.text = "Ready"
 
-            // Ölçüm varsa kaydet
             if (frameCount > 0) {
                 val avgMs = totalInferenceTime.toFloat() / frameCount
                 val avgFps = if (avgMs > 0) 1000f / avgMs else 0f
@@ -146,9 +122,8 @@ class MainActivity : AppCompatActivity() {
 
                 StatsRepository.addRecord(stats)
 
-                Toast.makeText(this, "İstatistik kaydedildi", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Stopped", Toast.LENGTH_SHORT).show()
 
-                // Kayıttan sonra sıfırla — tekrar STOP'a basınca mükerrer kayıt olmasın
                 totalInferenceTime = 0L
                 totalConfidence = 0f
                 frameCount = 0
@@ -158,12 +133,32 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // İstatistikler butonu (STOP'un DIŞINDA, kendi başına)
+        // İstatistikler butonu
         val statsButton = findViewById<TextView>(R.id.btnStats)
         statsButton.setOnClickListener {
             val intent = Intent(this, StatsActivity::class.java)
             startActivity(intent)
         }
+
+        // Kamera değiştir butonu
+        val switchCameraButton = findViewById<TextView>(R.id.btnSwitchCamera)
+        switchCameraButton.setOnClickListener {
+            // Ön ise arkaya, arka ise öne geç
+            lensFacing = if (lensFacing == CameraSelector.DEFAULT_FRONT_CAMERA) {
+                CameraSelector.DEFAULT_BACK_CAMERA
+            } else {
+                CameraSelector.DEFAULT_FRONT_CAMERA
+            }
+
+            // OverlayView'a kamera yönünü bildir
+            val isFront = (lensFacing == CameraSelector.DEFAULT_FRONT_CAMERA)
+            overlayView.setFrontCamera(isFront)
+
+
+            // Kamerayı yeni yönle yeniden başlat
+            startCamera()
+        }
+
         // Kamera izni kontrolü
         if (ContextCompat.checkSelfPermission(
                 this,
@@ -192,36 +187,46 @@ class MainActivity : AppCompatActivity() {
 
             val preview = Preview.Builder().build()
 
-            // Kare atlamasını önleyen ve bellek/performans dostu ImageAnalysis stratejisi
             val imageAnalysis = ImageAnalysis.Builder()
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build()
 
             imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
 
+
                 val bitmap = ImageUtils.imageProxyToBitmap(imageProxy)
 
-                // Sadece isRunning true ise modeli çalıştır
                 if (bitmap != null && isRunning) {
 
-                    // Süreyi ölç
-                    val startTime = System.currentTimeMillis()
-                    val keyPoints = poseEstimator.estimatePose(bitmap)
-                    val elapsed = System.currentTimeMillis() - startTime
+                    frameSkipCounter++
 
-                    // Ortalama güveni hesapla (bu frame için)
-                    val avgConf = if (keyPoints.isNotEmpty()) {
-                        keyPoints.map { it.score }.average().toFloat()
-                    } else 0f
+                    // Sadece her N. frame'i işle, diğerlerini atla
+                    if (frameSkipCounter >= processEveryNthFrame) {
+                        frameSkipCounter = 0
 
-                    // Biriktir
-                    totalInferenceTime += elapsed
-                    totalConfidence += avgConf
-                    frameCount++
+                        val squareBitmap = cropCenterSquare(bitmap)
 
-                    runOnUiThread {
-                        if (isRunning) {
-                            overlayView.setKeyPoints(keyPoints)
+                        val startTime = System.currentTimeMillis()
+                        val keyPoints = poseEstimator.estimatePose(squareBitmap)
+                        val elapsed = System.currentTimeMillis() - startTime
+
+                        val avgConf = if (keyPoints.isNotEmpty()) {
+                            keyPoints.map { it.score }.average().toFloat()
+                        } else 0f
+
+                        totalInferenceTime += elapsed
+                        totalConfidence += avgConf
+                        frameCount++
+
+                        val fps = if (elapsed > 0) 1000f / elapsed else 0f
+
+                        runOnUiThread {
+                            if (isRunning) {
+                                overlayView.setKeyPoints(keyPoints)
+                                livePanel.text = "%s · %d ms · %.1f FPS · conf %.2f".format(
+                                    currentModelName, elapsed, fps, avgConf
+                                )
+                            }
                         }
                     }
                 }
@@ -229,7 +234,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             preview.surfaceProvider = previewView.surfaceProvider
-            val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
+            val cameraSelector = lensFacing
 
             try {
                 cameraProvider.unbindAll()
@@ -240,14 +245,23 @@ class MainActivity : AppCompatActivity() {
                     imageAnalysis
                 )
             } catch (e: Exception) {
-                Toast.makeText(
-                    this,
-                    "Kamera başlatılamadı.",
-                    Toast.LENGTH_SHORT
-                ).show()
+                Toast.makeText(this, "Camera failed to start", Toast.LENGTH_SHORT).show()
             }
 
         }, ContextCompat.getMainExecutor(this))
+    }
+
+    // Bitmap'i merkezinden kare olarak kırpar (aspect ratio ezilmesini önler)
+    private fun cropCenterSquare(bitmap: Bitmap): Bitmap {
+        val width = bitmap.width
+        val height = bitmap.height
+        val size = minOf(width, height)   // kısa kenar = kare boyutu
+
+        // Kareyi ortalamak için başlangıç noktaları
+        val xStart = (width - size) / 2
+        val yStart = (height - size) / 2
+
+        return Bitmap.createBitmap(bitmap, xStart, yStart, size, size)
     }
 
     override fun onDestroy() {

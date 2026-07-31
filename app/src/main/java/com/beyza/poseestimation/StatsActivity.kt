@@ -23,7 +23,7 @@ class StatsActivity : AppCompatActivity() {
         // Kayıt yoksa bilgi mesajı göster
         if (records.isEmpty()) {
             val emptyText = TextView(this).apply {
-                text = "Henüz kayıt yok.\nBir model çalıştırıp STOP'a basın."
+                text = "No records yet.\nRun a model and press STOP."
                 textSize = 16f
                 gravity = Gravity.CENTER
                 setPadding(0, 40, 0, 0)
@@ -38,9 +38,9 @@ class StatsActivity : AppCompatActivity() {
             val card = TextView(this).apply {
                 text = buildString {
                     append("${index + 1}. ${stats.modelName}\n")
-                    append("Süre: %.1f ms  |  FPS: %.1f\n".format(stats.avgInferenceMs, stats.avgFps))
-                    append("Ort. Güven: %.3f\n".format(stats.avgConfidence))
-                    append("İşlenen Frame: ${stats.frameCount}")
+                    append("Time: %.1f ms  |  FPS: %.1f\n".format(stats.avgInferenceMs, stats.avgFps))
+                    append("Avg. Confidence: %.3f\n".format(stats.avgConfidence))
+                    append("Frames: ${stats.frameCount}")
                 }
                 textSize = 16f
                 setPadding(30, 30, 30, 30)
